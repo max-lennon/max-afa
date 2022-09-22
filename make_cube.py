@@ -14,13 +14,21 @@ def gen_cube(n_features=20, data_points=20000, sigma=0.3, seed=123):
             features[i, offset + j] = points[i, j]
     return np.array(features, np.float32), np.array(labels, np.float32)
 
-x, y = gen_cube()
+data_points = 100000
 
-indices = list(range(20000))
+x, y = gen_cube(data_points=data_points, seed=100)
+
+print(np.histogram(y, bins=8))
+
+indices = list(range(data_points))
 np.random.shuffle(indices)
-train_indices = indices[:10000]
-valid_indices = indices[10000:15000]
-test_indices = indices[15000:]
+
+train_split = int(data_points * 0.5)
+val_split = int(data_points * 0.75)
+
+train_indices = indices[:train_split]
+valid_indices = indices[train_split:val_split]
+test_indices = indices[val_split:]
 
 train_x, train_y = x[train_indices], y[train_indices]
 valid_x, valid_y = x[valid_indices], y[valid_indices]
