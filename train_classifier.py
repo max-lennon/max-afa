@@ -40,6 +40,7 @@ def train_network(train_data, val_data, batch_size, epochs, mode, criterion=None
             else:
                 (data, mask, labels) = batch
                 y = torch.nn.functional.one_hot(labels.long(), num_classes=21).float()
+                data = torch.mul(data, mask) - (1-mask) * 10
 
             if batch_idx % 100 == 0:
                 print("Batch", batch_idx)          
@@ -62,14 +63,15 @@ def train_network(train_data, val_data, batch_size, epochs, mode, criterion=None
                 (data, labels) = batch
                 y = torch.nn.functional.one_hot(labels.long(), num_classes=8).float()
                 val_mask = torch.floor(torch.rand(data.shape) + expected_features / total_features)
-                data = torch.mul(data, mask)
+                data = torch.mul(data, val_mask)
             else:
                 (data, val_mask, labels) = batch
                 y = torch.nn.functional.one_hot(labels.long(), num_classes=21).float()
+                data = torch.mul(data, val_mask) - (1-val_mask) * 10
 
             # val_mask = torch.floor(torch.rand(data.shape) + expected_features / total_features)
 
-            val_preds = torch.argmax(neural_classifier(torch.cat((torch.mul(data, val_mask), val_mask), 1).float()), axis=-1)
+            val_preds = torch.argmax(neural_classifier(torch.cat((data, val_mask), 1).float()), axis=-1)
             num_correct = torch.sum(torch.eq(val_preds, labels))
             total_correct += num_correct
 
