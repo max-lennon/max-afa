@@ -12,7 +12,7 @@ class PolicyEnvironment():
     def rollout_batch(self, data, mask=None):
 
         (batch, labels) = data
-
+        labels = torch.nn.functional.one_hot(labels.long(), num_classes=8).float()
         batch_size = len(batch)
         num_features = len(batch[0])
 
@@ -29,50 +29,66 @@ class PolicyEnvironment():
 
         steps = 0
 
-        while True and steps < 21:
+        while True and steps < 100:
 
-            pred_vec =  torch.broadcast_to(torch.Tensor(float("nan")), (batch_size))
-            correct_vec = torch.broadcast_to(torch.Tensor(float("nan")), (batch_size))
-            reward_vec = torch.zeros(batch_size)
+            if len(batch.shape) == 1:
+                batch = torch.unsqueeze(batch, 0)
+                mask = torch.unsqueeze(mask, 0)
+                labels = torch.unsqueeze(labels, 0)
 
-            action_probs = self.policy(torch.cat([batch, mask[:, :num_features]], 1))
+            pred_vec =  torch.broadcast_to(torch.Tensor([float("nan")]), (len(batch),)).clone()
+            correct_vec = torch.broadcast_to(torch.Tensor([float("nan")]), (len(batch),)).clone()
+            reward_vec = torch.zeros(len(batch)).clone()
+
+            print(batch.shape)
+
+            action_probs = self.policy(torch.cat([batch, mask[:, :num_features]], -1))
 
             if self.stochastic:
                 actions = torch.multinomial(action_probs, num_samples=1)
             else:
                 actions = torch.argmax(action_probs, axis=1)
 
-            mask[:, actions] = 1
+            action_mask = torch.nn.functional.one_hot(torch.squeeze(actions), num_classes=num_features+1)
+            mask = torch.maximum(action_mask, mask)
+            
+            print(mask)
 
-            predict_bool = torch.prod(mask[:, -1]) == 1
+            predict_bool = mask[:, -1] == 1
+            print(predict_bool.shape)
+            acquire_bool = torch.logical_not(predict_bool)
 
-            predict_idx = predict_bool.nonzero()
-            acquire_idx = torch.logical_not(predict_bool).nonzero()
+            if torch.any(predict_bool):
+                print("PRED SHAPES", batch[predict_bool, :].shape, mask[predict_bool, :-1].shape)
+                print(predict_bool.shape)
+                preds = self.classifier(torch.cat([batch[predict_bool, :], mask[predict_bool, :-1]], 1))
+                loss = self.loss_function(preds, labels[predict_bool, :])
 
-            preds = self.classifier(batch[predict_idx])
-            loss = self.loss_function(preds, labels[predict_idx])
+                pred_vec[predict_bool] = torch.argmax(preds, axis=1).float()
+                correct_vec[predict_bool] = (torch.argmax(preds, axis=1) == torch.argmax(labels[predict_bool, :], axis=1)).float()
+                reward_vec[predict_bool] = -loss
+            reward_vec[acquire_bool] = -self.alpha
 
-            pred_vec[predict_idx] = preds
-            correct_vec[predict_idx] = preds == labels[predict_idx]
-
-            reward_vec[predict_idx] = -loss
-            reward_vec[acquire_idx] = -self.alpha
+            print("ACTION", actions.shape)
 
             output_data.append(batch)
             output_label.append(labels)
-            output_action.append(actions)
+            output_action.append(torch.squeeze(actions, 1))
             output_pred.append(pred_vec)
             output_correct.append(correct_vec)
             output_reward.append(reward_vec)
 
-            if len(acquire_idx) == 0:
+            if not torch.any(acquire_bool):
                 break
 
-            batch = batch[acquire_idx]
-            label = label[acquire_idx]
+            batch = torch.squeeze(batch[acquire_bool, :])
+            mask = torch.squeeze(mask[acquire_bool, :])
+            labels = torch.squeeze(labels[acquire_bool, :])
             steps += 1
 
-        return [torch.cat(output) for output in [output_data, output_label, output_action, output_pred, output_correct, output_reward]]
+        print([output[-1] for output in [output_data, output_label, output_action, output_pred, output_correct, output_reward]])
+
+        return [torch.cat(output, 0) for output in [output_data, output_label, output_action, output_pred, output_correct, output_reward]]
 
 
         
