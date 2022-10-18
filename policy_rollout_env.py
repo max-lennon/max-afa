@@ -40,8 +40,6 @@ class PolicyEnvironment():
             correct_vec = torch.broadcast_to(torch.Tensor([float("nan")]), (len(batch),)).clone()
             reward_vec = torch.zeros(len(batch)).clone()
 
-            print(batch.shape)
-
             action_probs = self.policy(torch.cat([batch, mask[:, :num_features]], -1))
 
             if self.stochastic:
@@ -51,16 +49,11 @@ class PolicyEnvironment():
 
             action_mask = torch.nn.functional.one_hot(torch.squeeze(actions), num_classes=num_features+1)
             mask = torch.maximum(action_mask, mask)
-            
-            print(mask)
 
             predict_bool = mask[:, -1] == 1
-            print(predict_bool.shape)
             acquire_bool = torch.logical_not(predict_bool)
 
             if torch.any(predict_bool):
-                print("PRED SHAPES", batch[predict_bool, :].shape, mask[predict_bool, :-1].shape)
-                print(predict_bool.shape)
                 preds = self.classifier(torch.cat([batch[predict_bool, :], mask[predict_bool, :-1]], 1))
                 loss = self.loss_function(preds, labels[predict_bool, :])
 
@@ -68,8 +61,6 @@ class PolicyEnvironment():
                 correct_vec[predict_bool] = (torch.argmax(preds, axis=1) == torch.argmax(labels[predict_bool, :], axis=1)).float()
                 reward_vec[predict_bool] = -loss
             reward_vec[acquire_bool] = -self.alpha
-
-            print("ACTION", actions.shape)
 
             output_data.append(batch)
             output_label.append(labels)
@@ -85,8 +76,6 @@ class PolicyEnvironment():
             mask = torch.squeeze(mask[acquire_bool, :])
             labels = torch.squeeze(labels[acquire_bool, :])
             steps += 1
-
-        print([output[-1] for output in [output_data, output_label, output_action, output_pred, output_correct, output_reward]])
 
         return [torch.cat(output, 0) for output in [output_data, output_label, output_action, output_pred, output_correct, output_reward]]
 
