@@ -153,16 +153,16 @@ class PolicyEnvironment():
 
 
     def rollout_dataset(self, data, batch_size, hide_val=-10):
-        num_batches = len(data) // batch_size
+        num_batches = len(data[0]) // batch_size
 
-        full_dataset = self.rollout_batch(data[0:batch_size])
+        full_dataset = self.rollout_batch(data[:,0:batch_size])
 
         for i in range(1, num_batches):
-            batch_dataset = self.rollout_batch(data[batch_size*i:batch_size*(i+1)])
+            batch_dataset = self.rollout_batch(data[:,batch_size*i:batch_size*(i+1)])
             full_dataset = [torch.cat([full_dataset[e], batch_dataset[e]], 0) for e in len(full_dataset)]
 
         if num_batches * batch_size != len(data) and not self.fixed_batch:
-            batch_dataset = self.rollout_batch(data[batch_size*num_batches:-1])
+            batch_dataset = self.rollout_batch(data[:,batch_size*num_batches:-1])
             full_dataset = [torch.cat([full_dataset[e], batch_dataset[e]], 0) for e in len(full_dataset)]
 
         return full_dataset
